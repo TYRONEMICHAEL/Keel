@@ -1,0 +1,25 @@
+# Dependencies
+node_modules/
+
+# Build output
+keel
+dist/
+
+# Keel SQLite index (derived from JSONL, should not be committed)
+.keel/index.sqlite
+
+# Bun
+bun.lockb
+
+# IDE
+.idea/
+.vscode/
+*.swp
+*.swo
+
+# OS
+.DS_Store
+Thumbs.db
+
+# Test artifacts
+coverage/
