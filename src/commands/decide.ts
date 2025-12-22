@@ -15,6 +15,7 @@ interface DecideOptions {
   tradeoffs?: string;
   files?: string;
   symbols?: string;
+  beads?: string;
   agent?: boolean;
   identifier?: string;
   hypothesis?: string;
@@ -31,6 +32,7 @@ export const decideCommand = new Command("decide")
   .option("--tradeoffs <tradeoffs>", "Comma-separated list of tradeoffs")
   .option("-f, --files <files>", "Comma-separated file paths this decision affects")
   .option("-s, --symbols <symbols>", "Comma-separated symbol names")
+  .option("-b, --beads <beads>", "Comma-separated Beads issue IDs this decision relates to")
   .option("--agent", "Mark this decision as made by an agent")
   .option("--identifier <identifier>", "Identifier for who made the decision")
   .option("--hypothesis <hypothesis>", "Hypothesis being tested (for learnings)")
@@ -42,6 +44,7 @@ export const decideCommand = new Command("decide")
       const files = options.files?.split(",").map((f) => f.trim()).filter(Boolean);
       const symbols = options.symbols?.split(",").map((s) => s.trim()).filter(Boolean);
       const tradeoffs = options.tradeoffs?.split(",").map((t) => t.trim()).filter(Boolean);
+      const beads = options.beads?.split(",").map((b) => b.trim()).filter(Boolean);
 
       // Determine who made the decision
       const role = options.agent ? "agent" : "human";
@@ -56,6 +59,7 @@ export const decideCommand = new Command("decide")
         tradeoffs,
         files,
         symbols,
+        beads,
         hypothesis: options.hypothesis,
         success_criteria: options.successCriteria,
         decided_by: { role, identifier },
@@ -76,6 +80,7 @@ export const decideCommand = new Command("decide")
         decided_by: input.decided_by ?? { role: "human" },
         files: input.files,
         symbols: input.symbols,
+        beads: input.beads,
         status: "active",
         hypothesis: input.hypothesis,
         success_criteria: input.success_criteria,

@@ -94,6 +94,14 @@ export function formatDecisionFull(decision: Decision): string {
     }
   }
 
+  if (decision.beads?.length) {
+    lines.push("");
+    lines.push(`${BOLD}Beads${RESET}`);
+    for (const bead of decision.beads) {
+      lines.push(`  ${bead}`);
+    }
+  }
+
   lines.push("");
   lines.push(
     `${DIM}Decided by:${RESET} ${decision.decided_by.role}${decision.decided_by.identifier ? ` (${decision.decided_by.identifier})` : ""}`

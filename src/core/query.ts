@@ -57,6 +57,18 @@ export function queryBySymbol(db: Database, symbol: string): Decision[] {
   return rows.map(rowToDecision);
 }
 
+export function queryByBead(db: Database, beadId: string): Decision[] {
+  const rows = db.query<DecisionRow, [string]>(`
+    SELECT d.* FROM decisions d
+    INNER JOIN decision_beads db ON d.id = db.decision_id
+    WHERE db.bead_id = ?
+    AND d.status = 'active'
+    ORDER BY d.created_at DESC
+  `).all(beadId);
+
+  return rows.map(rowToDecision);
+}
+
 export interface QueryOptions {
   type?: DecisionType;
   status?: DecisionStatus;

@@ -52,6 +52,18 @@ function createSchema(db: Database): void {
     CREATE INDEX IF NOT EXISTS idx_symbols_name ON decision_symbols(symbol)
   `);
 
+  db.run(`
+    CREATE TABLE IF NOT EXISTS decision_beads (
+      decision_id TEXT NOT NULL,
+      bead_id TEXT NOT NULL,
+      PRIMARY KEY (decision_id, bead_id)
+    )
+  `);
+
+  db.run(`
+    CREATE INDEX IF NOT EXISTS idx_beads_id ON decision_beads(bead_id)
+  `);
+
   // FTS5 for full-text search
   db.run(`
     CREATE VIRTUAL TABLE IF NOT EXISTS decisions_fts USING fts5(
@@ -143,12 +155,24 @@ function insertDecision(db: Database, decision: Decision): void {
       symbolStmt.run(decision.id, symbol);
     }
   }
+
+  // Insert bead associations
+  if (decision.beads?.length) {
+    const beadStmt = db.prepare(`
+      INSERT OR IGNORE INTO decision_beads (decision_id, bead_id)
+      VALUES (?, ?)
+    `);
+    for (const bead of decision.beads) {
+      beadStmt.run(decision.id, bead);
+    }
+  }
 }
 
 function rebuildIndex(db: Database, repoRoot: string): void {
   // Clear existing data
   db.run("DELETE FROM decision_files");
   db.run("DELETE FROM decision_symbols");
+  db.run("DELETE FROM decision_beads");
   db.run("DELETE FROM decisions");
 
   const decisionsPath = getDecisionsPath(repoRoot);

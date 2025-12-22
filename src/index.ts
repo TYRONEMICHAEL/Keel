@@ -41,6 +41,7 @@ export {
   queryById,
   queryByFile,
   queryBySymbol,
+  queryByBead,
   queryAll,
   searchFullText,
   getActiveConstraints,
