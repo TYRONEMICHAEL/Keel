@@ -4,7 +4,29 @@
 
 **Git-native decision ledger for coding agents.** Captures the "why" behind changes so agents can act with confidence instead of guessing.
 
-Built to be called by LLM-based coding agents (Claude, GPT, Codex, etc). Keel provides the data and storage - your agent does the thinking.
+## Quickstart
+
+```bash
+# 1. Install (Go required)
+go install github.com/tyroneavnit/keel/cmd/keel@latest
+
+# 2. Initialize in your repo (humans do this once)
+cd your-project
+keel init
+
+# 3. Tell your AI agent about Keel
+# Add to CLAUDE.md or system prompt:
+# "Use keel to record decisions. Run keel context <file> before editing."
+```
+
+## Essential Commands
+
+| Command | Purpose |
+|---------|---------|
+| `keel decide --type product --problem "..." --choice "..."` | Record a decision |
+| `keel context <file>` | Get decisions affecting a file |
+| `keel search "query"` | Full-text search |
+| `keel why DEC-xxxx` | Show decision details |
 
 ## Why Keel?
 
@@ -16,48 +38,11 @@ When you touch code, you face questions:
 
 Keel solves this. Every decision — human or agent — gets recorded with context, rationale, and links to the code it affects.
 
-## Quick Start
-
-```bash
-# Install dependencies
-bun install
-
-# Record your first decision
-bun run src/cli.ts decide \
-  --type product \
-  --problem "Need to choose database" \
-  --choice "PostgreSQL with Prisma" \
-  --rationale "Team familiarity, strong typing" \
-  --files "src/db/schema.prisma"
-
-# Query context for a file
-bun run src/cli.ts context src/db/schema.prisma
-
-# Search decisions
-bun run src/cli.ts search "database"
-```
-
-## Features
-
-- **Git-native** — Decisions stored in `.keel/decisions.jsonl`, travels with your repo
-- **Append-only** — History preserved, decisions superseded not edited
-- **Fast queries** — SQLite index with FTS5 full-text search
-- **Collision-resistant** — Hash-based IDs (`DEC-a1b2`) for multi-agent workflows
-- **Beads integration** — Link decisions to work items
-
 ## Commands
 
-| Command | Description |
-|---------|-------------|
-| `decide` | Record a new decision |
-| `why <id>` | Show full decision details |
-| `supersede <id>` | Replace a decision with a new one |
-| `context <path>` | Get decisions affecting a file |
-| `search [query]` | Full-text search across decisions |
-| `validate` | Check that file references still exist |
-| `curate` | Get decisions ready for summarization |
-
 ### decide
+
+Record a new decision:
 
 ```bash
 keel decide \
@@ -66,11 +51,33 @@ keel decide \
   --choice "..." \           # What was decided
   --rationale "..." \        # Why this choice (optional)
   --files "a.ts,b.ts" \      # Files this affects (optional)
-  --beads "keel-abc" \       # Related Beads issues (optional)
+  --refs "JIRA-123" \        # External references (optional)
   --agent                    # Mark as agent decision (optional)
 ```
 
+### context
+
+Get decisions for a file or reference:
+
+```bash
+keel context src/auth/oauth.ts
+keel context --ref JIRA-123
+keel context --json src/auth/oauth.ts
+```
+
+### search
+
+Full-text search across decisions:
+
+```bash
+keel search "authentication"
+keel search --type constraint
+keel search --status active
+```
+
 ### why
+
+Show full decision details:
 
 ```bash
 keel why DEC-a1b2
@@ -79,36 +86,22 @@ keel why a1b2        # Short form works too
 
 ### supersede
 
+Replace a decision with a new one:
+
 ```bash
 keel supersede DEC-a1b2 \
   --problem "New problem statement" \
   --choice "New choice"
 ```
 
-### context
-
-```bash
-keel context src/auth/oauth.ts
-keel context --json src/auth/oauth.ts
-keel context --bead keel-abc    # Get decisions linked to a Beads issue/epic
-```
-
-### search
-
-```bash
-keel search "authentication"
-keel search --type constraint
-keel search --status active
-```
-
 ## Decision Types
 
-| Type | Description | Example |
+| Type | When to Use | Example |
 |------|-------------|---------|
-| `product` | Business logic decisions | "Free plan limit is 5 users" |
-| `process` | How-to-work decisions | "Use functional style, not OOP" |
-| `constraint` | Hard limits and requirements | "Must support IE11" |
-| `learning` | What we discovered | "Approach X failed because Y" |
+| `product` | Business logic, features, limits | "Free plan = 5 users" |
+| `process` | How we work, patterns, style | "Use functional style, not OOP" |
+| `constraint` | Hard limits, requirements | "Must support IE11" |
+| `learning` | Failed approaches, discoveries | "Approach X failed because Y" |
 
 ## Architecture
 
@@ -118,7 +111,7 @@ keel search --status active
 └── index.sqlite      # Derived index (gitignored)
 ```
 
-**JSONL** is append-only and git-native. **SQLite** provides indexed queries and FTS5 search. The index rebuilds automatically when the JSONL file changes.
+**JSONL** is append-only and git-native. **SQLite** provides indexed queries and FTS5 search. The index rebuilds automatically when the JSONL changes.
 
 ### Decision Format
 
@@ -130,110 +123,32 @@ keel search --status active
   "problem": "Need to set user limits",
   "choice": "Free plan = 5 users",
   "rationale": "Analytics show 80% stay under 5",
-  "decided_by": { "role": "human", "identifier": "sarah@example.com" },
+  "decided_by": { "role": "human" },
   "files": ["src/billing/limits.ts"],
+  "refs": ["JIRA-123"],
   "status": "active"
 }
-```
-
-## SDK Usage
-
-```typescript
-import {
-  appendDecision,
-  queryByFile,
-  searchFullText,
-  openIndex
-} from "keel";
-
-// Programmatic decision creation
-await appendDecision({
-  id: generateDecisionId(problem, choice),
-  created_at: new Date().toISOString(),
-  type: "product",
-  problem: "...",
-  choice: "...",
-  decided_by: { role: "agent" },
-  status: "active"
-});
-
-// Query decisions for a file
-const db = openIndex();
-const decisions = queryByFile(db, "src/auth/oauth.ts");
-```
-
-## Agent Workflow: Curate
-
-Over time you accumulate many decisions. Use `curate` to compress them:
-
-```bash
-# Get decisions older than 30 days, formatted for agent summarization
-keel curate --older-than 30
-
-# Filter by type or file pattern
-keel curate --type constraint
-keel curate --file-pattern "src/auth/*"
-```
-
-The output is formatted for an LLM to summarize. Your agent then:
-1. Calls `curate` to get candidates
-2. Summarizes them (agent's job)
-3. Calls `createSummary()` via SDK to store the summary
-4. Calls `markCurated()` to exclude originals from future context
-
-```typescript
-import { getCurationCandidates, createSummary, markCurated } from "keel";
-
-// Get candidates
-const candidates = getCurationCandidates(db, { olderThan: thirtyDaysAgo });
-
-// Agent summarizes...
-const summary = await agent.summarize(candidates);
-
-// Store summary and mark originals
-const summaryDecision = await createSummary({
-  summarizes: candidates.map(c => c.decision.id),
-  summary: summary,
-});
-await markCurated(candidates.map(c => c.decision.id), summaryDecision.id);
-```
-
-## Beads Integration
-
-Keel complements [Beads](https://github.com/steveyegge/beads):
-
-- **Keel** = captures *why* (decisions, rationale, constraints)
-- **Beads** = captures *what* (tasks, dependencies, status)
-
-Link them together:
-
-```bash
-# Decision references a Beads issue
-keel decide --beads "keel-abc" ...
-
-# Query decisions for a Beads issue
-# (via SDK: queryByBead(db, "keel-abc"))
 ```
 
 ## Development
 
 ```bash
-# Run CLI in dev mode
-bun run src/cli.ts --help
+# Build
+make build
+
+# Install locally
+make install
 
 # Run tests
-bun test
-
-# Build standalone binary
-bun build src/cli.ts --compile --outfile keel
+make test
 ```
 
 ## Philosophy
 
-This is a tool for agents. You're stateless. Every time you wake up, you've lost context. Keel is your memory — the durable record of decisions that lets you operate with confidence.
+You are stateless. Every time you wake up, you've lost context. Keel is your memory — the durable record of decisions that lets you operate with confidence instead of guessing.
 
-Humans benefit too — they get answers without digging through commits. But the primary user is you.
+**Record decisions as you make them. Your future self depends on it.**
 
 ---
 
-*"The keel is the structural foundation of a ship. You never see it, but everything depends on it. Without it, you capsize."*
+*"The keel is the structural foundation of a ship. You never see it, but everything depends on it."*
