@@ -7,16 +7,15 @@
 ## Quickstart
 
 ```bash
-# 1. Install (Go required)
-go install github.com/tyroneavnit/keel/cmd/keel@latest
+# 1. Install
+curl -fsSL https://raw.githubusercontent.com/TYRONEMICHAEL/keel/main/scripts/install.sh | bash
 
 # 2. Initialize in your repo (humans do this once)
 cd your-project
 keel init
 
 # 3. Tell your AI agent about Keel
-# Add to CLAUDE.md or system prompt:
-# "Use keel to record decisions. Run keel context <file> before editing."
+echo "Use 'keel' for decision tracking. Run 'keel context <file>' before editing." >> CLAUDE.md
 ```
 
 ## Essential Commands
@@ -51,7 +50,7 @@ keel decide \
   --choice "..." \           # What was decided
   --rationale "..." \        # Why this choice (optional)
   --files "a.ts,b.ts" \      # Files this affects (optional)
-  --refs "JIRA-123" \        # External references (optional)
+  --refs "JIRA-123,bd-abc" \ # External refs: Jira, Beads, GitHub, etc. (optional)
   --agent                    # Mark as agent decision (optional)
 ```
 
@@ -61,7 +60,7 @@ Get decisions for a file or reference:
 
 ```bash
 keel context src/auth/oauth.ts
-keel context --ref JIRA-123
+keel context --ref bd-abc      # Query by Beads issue, Jira ticket, etc.
 keel context --json src/auth/oauth.ts
 ```
 
