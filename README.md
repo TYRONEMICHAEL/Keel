@@ -142,6 +142,27 @@ make install
 make test
 ```
 
+## Releasing
+
+To create a new release:
+
+```bash
+# 1. Update version in Makefile
+# 2. Commit the change
+git add Makefile && git commit -m "Bump version to vX.Y.Z"
+
+# 3. Tag and push
+git tag vX.Y.Z
+git push origin main --tags
+```
+
+GitHub Actions will automatically:
+- Build binaries for darwin/linux (amd64/arm64) + windows
+- Create a GitHub release with all binaries
+- Generate release notes from commits
+
+The install script (`curl | bash`) will then fetch the new version.
+
 ## Philosophy
 
 You are stateless. Every time you wake up, you've lost context. Keel is your memory — the durable record of decisions that lets you operate with confidence instead of guessing.
