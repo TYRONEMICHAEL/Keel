@@ -1,6 +1,6 @@
 ---
 name: keel
-description: "Decision memory for AI agents. Before building or planning any feature, invoke this skill and check for existing decisions that might conflict. Decisions are constraints - if your plan conflicts, STOP and ask."
+description: "Decision memory for AI agents. FIRST ACTION on any feature: check existing decisions for conflicts. If conflict found, STOP and ask before proceeding."
 allowed-tools: "Read,Bash(keel:*)"
 version: "0.1.0"
 author: "Tyrone Avnit"
