@@ -91,6 +91,7 @@ keel sql <query> [flags]
 **Schema:**
 ```sql
 decisions (id, type, status, problem, choice, rationale, created_at, raw_json)
+-- status: 'active' = in effect, 'superseded' = replaced by newer decision
 decision_files (decision_id, file_path)
 decision_refs (decision_id, ref_id)
 decision_symbols (decision_id, symbol)

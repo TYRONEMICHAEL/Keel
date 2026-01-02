@@ -327,7 +327,7 @@ The `keel sql` command queries a SQLite index. Schema:
 decisions (
   id TEXT PRIMARY KEY,       -- e.g., "DEC-3957"
   type TEXT,                  -- 'product', 'process', 'constraint'
-  status TEXT,                -- 'active', 'superseded'
+  status TEXT,                -- 'active' = in effect, 'superseded' = replaced by newer decision
   problem TEXT,
   choice TEXT,
   rationale TEXT,
