@@ -1,9 +1,6 @@
 ---
 name: keel
-description: >
-  Records decisions with rationale so agents can understand why code is the way it is. Use when making
-  architectural choices, setting limits, choosing approaches, or learning from failures. Trigger with
-  phrases like "we decided", "the reason is", "why is this", "what constraints", or "record decision".
+description: "Decision memory for AI agents. You are stateless - check .keel/ decisions BEFORE implementing anything. Run 'keel sql' to query decisions. If your plan conflicts with a decision, STOP and ask approval. After making choices, run 'keel decide' to record them."
 allowed-tools: "Read,Bash(keel:*)"
 version: "0.1.0"
 author: "Tyrone Avnit"
@@ -30,7 +27,6 @@ Git-native decision ledger that captures the "why" behind code changes. Provides
 - ❓ "Would a future agent wonder why this is like this?" → **YES** = record
 - ❓ "Did I choose between multiple valid approaches?" → **YES** = record
 - ❓ "Is there a limit, constraint, or requirement here?" → **YES** = record
-- ❓ "Did something fail that we shouldn't try again?" → **YES** = record
 - ❓ "Is this just an implementation detail?" → **NO** = don't record
 
 **Decision Rule**: If you had to think about it, record it.
@@ -87,11 +83,39 @@ Active constraints:
   DEC-3957 Append-only ledger: decisions are never edited, only superseded
 ```
 
-#### Step 2: Search for Related Decisions
+#### Step 2: Query Related Decisions
+
+Use `keel sql` to query the SQLite index directly:
 
 ```bash
-keel search "authentication"
-keel search --type constraint
+# Get all active decisions
+keel sql "SELECT raw_json FROM decisions WHERE status = 'active'"
+
+# Get all constraints (always relevant)
+keel sql "SELECT raw_json FROM decisions WHERE type = 'constraint' AND status = 'active'"
+
+# Search by content
+keel sql "SELECT raw_json FROM decisions WHERE problem LIKE '%auth%' OR choice LIKE '%auth%'"
+```
+
+#### Step 3: Enforce Decisions as Constraints
+
+**Decisions are CONSTRAINTS, not documentation.** If your proposed change would conflict with a recorded decision, you must:
+
+1. **State the conflict explicitly**: "This would violate DEC-xxx which says..."
+2. **STOP and ask for approval** before proceeding
+3. **Do NOT rationalize compatibility** — if there's tension, surface it
+
+You cannot supersede a decision on your own. Only a human can approve reversing a decision.
+
+**Example conflict:**
+```
+I need to add a 6th user to the free plan, but DEC-a1b2 says
+"Free plan = 5 users". This would violate that decision.
+
+Should I:
+1. Proceed and supersede DEC-a1b2?
+2. Find another approach that respects the limit?
 ```
 
 ---
@@ -151,22 +175,44 @@ keel decide \
   --agent
 ```
 
+#### Decision with Commit Reference (for Rollback)
+
+Include the current commit hash to enable rollback to this decision point:
+
+```bash
+keel decide \
+  --type product \
+  --problem "Need to choose database" \
+  --choice "PostgreSQL with Prisma" \
+  --refs "commit:$(git rev-parse HEAD)" \
+  --agent
+```
+
+This captures the exact code state when the decision was made.
+
+**When to include commit refs:**
+- Architectural decisions
+- Significant code changes
+- Decisions you might want to revisit
+
+**When to skip:**
+- Forward-looking decisions (before implementation)
+- Non-code decisions
+
 ---
 
 ### Decision Types
 
 | Type | When to Use | Example |
 |------|-------------|---------|
-| `product` | Business logic, features, limits | "Free plan = 5 users" |
+| `product` | Business logic, features, architecture | "Free plan = 5 users" |
 | `process` | How we work, patterns, style | "Use functional style, not OOP" |
 | `constraint` | Hard limits, requirements, rules | "Must support IE11", "Max 100 RPS" |
-| `learning` | Failed approaches, discoveries | "Approach X failed because Y" |
 
 **Choosing the Right Type**:
-- If it affects what users see/do → `product`
-- If it affects how code is written → `process`
+- If it affects what users see/do or system architecture → `product`
+- If it affects how code is written or team works → `process`
 - If it's a hard limit that can't be violated → `constraint`
-- If it's knowledge gained from trying something → `learning`
 
 ---
 
@@ -188,6 +234,65 @@ This:
 
 ---
 
+### When Files Are Renamed or Moved
+
+File paths in decisions are historical - they show where code was when the decision was made. When renaming or moving files:
+
+1. **Check for affected decisions:**
+```bash
+keel search "<old-filename>"
+```
+
+2. **If critical decisions exist**, supersede with updated paths:
+```bash
+keel supersede DEC-xxx \
+  --problem "Same problem" \
+  --choice "Same choice" \
+  --files "new/path/to/file.go"
+```
+
+3. **If just historical context**, leave as-is - the decision content is what matters.
+
+**Note:** File refs are optional context, not the primary way to find decisions. Use `keel search` to find decisions by content.
+
+---
+
+### Rolling Back to a Decision Point
+
+To rollback to the code state when a decision was made:
+
+**1. Query the decision:**
+```bash
+keel why DEC-xxx --json
+```
+
+**2. Extract commit ref from refs array:**
+Look for ref starting with `commit:`, e.g., `"refs": ["commit:a1b2c3d4..."]`
+
+**3. Check if decision is superseded:**
+If `status: "superseded"`, warn the user before proceeding.
+
+**4. Verify clean working tree:**
+```bash
+git status --porcelain
+```
+Stop if there are uncommitted changes.
+
+**5. Checkout the commit:**
+```bash
+git checkout <commit-hash>
+```
+
+**6. Inform user:**
+```
+You are now in detached HEAD state at decision DEC-xxx.
+To return to your branch: git checkout <branch-name>
+```
+
+**Note:** Rollback only works for decisions that included a commit ref. See "Decision with Commit Reference" above.
+
+---
+
 ### Session End Protocol
 
 Before ending session:
@@ -206,11 +311,57 @@ Before ending session:
 | `keel context <path>` | Get decisions for a file | `keel context src/auth/oauth.ts` |
 | `keel context --ref <id>` | Get decisions for a reference | `keel context --ref bd-auth-123` |
 | `keel why <id>` | Show full decision details | `keel why DEC-a1b2` |
-| `keel search <query>` | Full-text search | `keel search "authentication"` |
-| `keel search --type <type>` | Filter by type | `keel search --type constraint` |
+| `keel sql <query>` | Execute SQL query | `keel sql "SELECT * FROM decisions WHERE status = 'active'"` |
 | `keel supersede <id>` | Replace a decision | `keel supersede DEC-a1b2 --problem "..." --choice "..."` |
-| `keel validate` | Check file references exist | `keel validate` |
 | `keel curate` | Get decisions for summarization | `keel curate --older-than 30` |
+| `keel graph` | Output decision graph as Mermaid | `keel graph` |
+
+---
+
+## SQL Schema
+
+The `keel sql` command queries a SQLite index. Schema:
+
+```sql
+-- Main decisions table
+decisions (
+  id TEXT PRIMARY KEY,       -- e.g., "DEC-3957"
+  type TEXT,                  -- 'product', 'process', 'constraint'
+  status TEXT,                -- 'active', 'superseded'
+  problem TEXT,
+  choice TEXT,
+  rationale TEXT,
+  created_at TEXT,
+  supersedes TEXT,            -- ID of decision this supersedes
+  superseded_by TEXT,         -- ID of decision that superseded this
+  raw_json TEXT               -- Full decision as JSON
+)
+
+-- File associations
+decision_files (decision_id, file_path)
+
+-- Reference associations (Beads, Jira, commits, etc.)
+decision_refs (decision_id, ref_id)
+
+-- Symbol associations
+decision_symbols (decision_id, symbol)
+```
+
+**Common Queries:**
+
+```bash
+# All active decisions
+keel sql "SELECT raw_json FROM decisions WHERE status = 'active'"
+
+# All constraints
+keel sql "SELECT raw_json FROM decisions WHERE type = 'constraint' AND status = 'active'"
+
+# Decisions mentioning a topic
+keel sql "SELECT raw_json FROM decisions WHERE problem LIKE '%billing%' OR choice LIKE '%billing%'"
+
+# Decisions for a file pattern
+keel sql "SELECT d.raw_json FROM decisions d JOIN decision_files df ON d.id = df.decision_id WHERE df.file_path LIKE '%auth%'"
+```
 
 ---
 
@@ -263,20 +414,35 @@ $ keel decide \
 Created DEC-4e8f
 ```
 
-### Example 3: Recording a Failed Approach
+### Example 3: Recording an Architectural Choice
 
 ```bash
-# GraphQL subscriptions didn't work out
+# Chose SSE over WebSockets
 $ keel decide \
-  --type learning \
-  --problem "Tried GraphQL subscriptions for real-time" \
-  --choice "Abandoned - too complex for our needs" \
-  --rationale "Required Apollo Server, added 50KB to bundle, team unfamiliar"
+  --type product \
+  --problem "Need real-time notifications" \
+  --choice "Server-Sent Events over WebSockets" \
+  --rationale "Simpler, unidirectional sufficient, better browser support"
 
 Created DEC-2a9c
 ```
 
-Now future agents won't waste time trying GraphQL subscriptions.
+---
+
+## Codebase Onboarding
+
+When joining an existing codebase, use the onboarding protocol to extract implicit decisions through interviews.
+
+**How it works:**
+1. Analyze codebase structure
+2. Check existing decisions: `keel search --type product`
+3. Interview user about the "why" behind choices
+4. Group related answers into coherent decisions
+5. Batch record with `keel decide`
+
+**Resumability:** Decisions are the state. On resume, query what's documented and ask user what else to cover.
+
+**See:** `references/ONBOARD.md` for the full protocol.
 
 ---
 

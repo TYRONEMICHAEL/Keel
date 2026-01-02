@@ -25,7 +25,7 @@ keel decide [flags]
 ```
 
 **Required flags:**
-- `--type <type>` - Decision type: product, process, constraint, learning
+- `--type <type>` - Decision type: product, process, constraint
 - `--problem "..."` - What problem this addresses
 - `--choice "..."` - What was decided
 
@@ -46,6 +46,11 @@ keel decide \
   --rationale "Team familiarity, strong typing" \
   --files "src/db/schema.prisma" \
   --refs "bd-db-123"
+```
+
+**Tip:** Include commit hash for rollback capability:
+```bash
+--refs "commit:$(git rev-parse HEAD)"
 ```
 
 ---
@@ -72,25 +77,44 @@ keel context --json src/billing/checkout.ts
 
 ---
 
-### keel search
+### keel sql
 
-Full-text search across decisions.
+Execute read-only SQL against the decision index.
 
 ```bash
-keel search <query> [flags]
+keel sql <query> [flags]
 ```
 
 **Flags:**
-- `--type <type>` - Filter by type
-- `--status <status>` - Filter by status (active, superseded)
-- `--json` - Output as JSON
+- `--json` - Output as JSON array
+
+**Schema:**
+```sql
+decisions (id, type, status, problem, choice, rationale, created_at, raw_json)
+decision_files (decision_id, file_path)
+decision_refs (decision_id, ref_id)
+decision_symbols (decision_id, symbol)
+```
 
 **Examples:**
 ```bash
-keel search "authentication"
-keel search --type constraint
-keel search --status active "database"
+# All active decisions
+keel sql "SELECT raw_json FROM decisions WHERE status = 'active'"
+
+# All constraints
+keel sql "SELECT raw_json FROM decisions WHERE type = 'constraint' AND status = 'active'"
+
+# Search by content
+keel sql "SELECT raw_json FROM decisions WHERE problem LIKE '%auth%' OR choice LIKE '%auth%'"
+
+# Decisions for files
+keel sql "SELECT d.raw_json FROM decisions d JOIN decision_files df ON d.id = df.decision_id WHERE df.file_path LIKE '%billing%'"
+
+# JSON output
+keel sql "SELECT * FROM decisions" --json
 ```
+
+**Note:** Only SELECT queries are allowed. INSERT, UPDATE, DELETE will be rejected.
 
 ---
 
@@ -142,18 +166,6 @@ keel supersede DEC-a1b2 \
 
 ---
 
-### keel validate
-
-Check that file references still exist.
-
-```bash
-keel validate
-```
-
-Reports decisions with broken file references.
-
----
-
 ### keel curate
 
 Get decisions ready for summarization.
@@ -171,9 +183,30 @@ keel curate [flags]
 **Examples:**
 ```bash
 keel curate --older-than 30
-keel curate --type learning
+keel curate --type constraint
 keel curate --file-pattern "src/auth/*"
 ```
+
+---
+
+### keel graph
+
+Output decision graph as Mermaid diagram.
+
+```bash
+keel graph [flags]
+```
+
+**Flags:**
+- `--files` - Include file associations in graph
+
+**Examples:**
+```bash
+keel graph              # Show decisions with supersession chains and bead links
+keel graph --files      # Also include file associations
+```
+
+Output can be pasted into any Mermaid viewer (GitHub, Notion, mermaid.live, etc).
 
 ---
 
